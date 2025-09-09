@@ -1,0 +1,11 @@
+[package]
+name = "cgar-viewer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# cgar = "0.1"
+cgar = { path = "../cgar" }
+
+bevy = { version = "0.16", features = ["bevy_winit", "png"] }
+bevy-inspector-egui = "0.33.1"
