@@ -47,39 +47,43 @@ fn main() {
 
 fn setup_camera_light(mut commands: Commands) {
     // Camera with sensible transform
-    commands.spawn((
-        Camera3d::default(),
-        Projection::Perspective(PerspectiveProjection {
-            fov: std::f32::consts::PI / 6.0, // 30 degrees (narrower FOV for closer inspection)
-            near: 0.01,                      // Very close near plane (default is usually 0.1)
-            far: 1000.0,                     // Keep far plane reasonable
-            aspect_ratio: 1.0,               // Will be adjusted automatically
-        }),
-        Transform::from_xyz(2.5, 2.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-        MeshPickingCamera,
-        OrbitCamera {
-            focus: Vec3::ZERO,
-            radius: 5.0,
-            upside_down: false,
-            last_mouse_pos: None,
-        },
-    ));
+    let camera_entity = commands
+        .spawn((
+            Camera3d::default(),
+            Projection::Perspective(PerspectiveProjection {
+                fov: std::f32::consts::PI / 6.0, // 30 degrees (narrower FOV for closer inspection)
+                near: 0.01,                      // Very close near plane (default is usually 0.1)
+                far: 1000.0,                     // Keep far plane reasonable
+                aspect_ratio: 1.0,               // Will be adjusted automatically
+            }),
+            Transform::from_xyz(2.5, 2.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+            MeshPickingCamera,
+            OrbitCamera {
+                focus: Vec3::ZERO,
+                radius: 5.0,
+                upside_down: false,
+                last_mouse_pos: None,
+            },
+        ))
+        .id();
 
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
-        brightness: 1.0,
+        brightness: 100.0,
         affects_lightmapped_meshes: true,
     });
 
-    commands.spawn((
-        DirectionalLight {
-            color: Color::WHITE,
-            illuminance: 5000.0,
-            shadows_enabled: true,
-            ..default()
-        },
-        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.5, -0.5, 0.0)),
-    ));
+    commands
+        .spawn((
+            DirectionalLight {
+                color: Color::WHITE,
+                illuminance: 3000.0,
+                shadows_enabled: true,
+                ..default()
+            },
+            Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.25, -0.25, 0.0)),
+        ))
+        .insert(ChildOf(camera_entity));
 }
 
 // ---- Example: convert a CGAR mesh (3D) to a Bevy Mesh ----
@@ -191,7 +195,7 @@ fn setup_cgar_mesh(
         base_color: Color::srgb(0.9, 0.9, 0.95), // Brighter base color
         perceptual_roughness: 0.3,               // Lower roughness = more reflective
         metallic: 0.0, // Non-metallic for better visibility with ambient light
-        emissive: Color::srgb(0.1, 0.1, 0.1).into(), // Add slight emission
+        emissive: Color::srgb(0.5, 0.5, 0.5).into(), // Add slight emission
         ..default()
     });
 
