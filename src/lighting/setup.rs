@@ -23,33 +23,40 @@
 use bevy::{
     color::Color,
     core_pipeline::core_3d::Camera3d,
-    ecs::{hierarchy::ChildOf, system::Commands},
-    math::{EulerRot, Quat, Vec3},
+    ecs::{hierarchy::ChildOf, query::With, system::Commands},
+    math::{EulerRot, Quat, Vec2, Vec3},
     pbr::{AmbientLight, DirectionalLight},
     picking::mesh_picking::MeshPickingCamera,
-    render::camera::{PerspectiveProjection, Projection},
+    render::camera::{OrthographicProjection, Projection, ScalingMode},
     transform::components::Transform,
     utils::default,
+    window::{PrimaryWindow, Window},
 };
 
 use crate::camera::components::OrbitCamera;
 
-pub fn setup_camera_light(mut commands: Commands) {
+pub fn setup_camera_and_light(mut commands: Commands) {
     // Camera with sensible transform
     let camera_entity = commands
         .spawn((
             Camera3d::default(),
-            Projection::Perspective(PerspectiveProjection {
-                fov: std::f32::consts::PI / 6.0, // 30 degrees (narrower FOV for closer inspection)
-                near: 0.01,                      // Very close near plane (default is usually 0.1)
-                far: 1000.0,                     // Keep far plane reasonable
-                aspect_ratio: 1.0,               // Will be adjusted automatically
+            Projection::Orthographic(OrthographicProjection {
+                near: 0.01,
+                far: 1000.0,
+                scale: 2.0, // Increase scale to see the unit cube better
+                viewport_origin: Vec2::new(0.5, 0.5),
+                scaling_mode: ScalingMode::FixedVertical {
+                    viewport_height: 2.0,
+                },
+                // Remove manual area setting - let it be computed automatically
+                ..OrthographicProjection::default_3d()
             }),
-            Transform::from_xyz(2.5, 2.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+            // Move camera further back to avoid near plane issues
+            Transform::from_xyz(0.0, 0.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
             MeshPickingCamera,
             OrbitCamera {
                 focus: Vec3::ZERO,
-                radius: 5.0,
+                radius: 10.0,
                 upside_down: false,
                 last_mouse_pos: None,
             },
@@ -73,4 +80,34 @@ pub fn setup_camera_light(mut commands: Commands) {
             Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.25, -0.25, 0.0)),
         ))
         .insert(ChildOf(camera_entity));
+}
+
+pub fn sync_camera_aspect(
+    windows: bevy::ecs::system::Query<&Window, With<PrimaryWindow>>,
+    mut q: bevy::ecs::system::Query<
+        (
+            &bevy::render::camera::Camera,
+            &mut bevy::render::camera::Projection,
+        ),
+        With<Camera3d>,
+    >,
+) {
+    let Ok(window) = windows.get_single() else {
+        return;
+    };
+    for (camera, mut proj) in &mut q {
+        let (w, h) = if let Some(vp) = camera.viewport.as_ref() {
+            (vp.physical_size.x as f32, vp.physical_size.y as f32)
+        } else {
+            (
+                window.physical_width() as f32,
+                window.physical_height() as f32,
+            )
+        };
+        if h > 0.0 {
+            if let bevy::render::camera::Projection::Perspective(p) = proj.as_mut() {
+                p.aspect_ratio = w / h;
+            }
+        }
+    }
 }
