@@ -21,4 +21,5 @@
 // SOFTWARE.
 
 pub mod conversion;
+pub mod edge;
 pub mod setup;

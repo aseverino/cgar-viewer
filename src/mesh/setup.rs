@@ -34,7 +34,7 @@ use bevy::{
 };
 use cgar::{io::obj::read_obj, numeric::cgar_f64::CgarF64};
 
-use crate::mesh::conversion::cgar_to_bevy_mesh;
+use crate::{camera::components::CgarMeshData, mesh::conversion::cgar_to_bevy_mesh};
 
 pub fn setup_cgar_mesh(
     mut commands: Commands,
@@ -48,8 +48,7 @@ pub fn setup_cgar_mesh(
         + Neg<Output = CgarF64>,
 {
     // For now: create a simple cube as a placeholder
-    let cgar_mesh =
-        read_obj::<CgarF64, _>("/mnt/v/cgar_meshes/difference_large_boolean.obj").unwrap(); // Replace with your actual CGAR mesh
+    let cgar_mesh = read_obj::<CgarF64, _>("/mnt/v/cgar_meshes/cube.obj").unwrap(); // Replace with your actual CGAR mesh
     let bevy_mesh = cgar_to_bevy_mesh(&cgar_mesh);
 
     let handle = meshes.add(bevy_mesh);
@@ -66,5 +65,6 @@ pub fn setup_cgar_mesh(
         Mesh3d(handle.clone()),
         Transform::default(),
         Pickable::default(),
+        CgarMeshData(cgar_mesh),
     ));
 }

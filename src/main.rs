@@ -34,7 +34,8 @@ mod utils;
 
 use crate::camera::systems::camera_controller;
 use crate::input::systems::toggle_wireframe;
-use crate::lighting::setup::setup_camera_light;
+use crate::lighting::setup::{setup_camera_and_light, sync_camera_aspect};
+use crate::mesh::edge::{HighlightedEdges, handle_mesh_click};
 use crate::mesh::setup::setup_cgar_mesh;
 // ... other imports
 
@@ -47,11 +48,21 @@ fn main() {
             }),
             ..default()
         }))
+        .init_resource::<HighlightedEdges>()
         .add_plugins((
             MeshPickingPlugin, // built-in mesh picking
             WireframePlugin::default(),
         ))
-        .add_systems(Startup, (setup_camera_light, setup_cgar_mesh))
+        .add_systems(Startup, (setup_camera_and_light, setup_cgar_mesh))
         .add_systems(Update, (toggle_wireframe, camera_controller))
+        .add_systems(
+            PostUpdate,
+            (
+                sync_camera_aspect, // updates aspect from viewport/window
+                handle_mesh_click,  // computes ray using correct projection + transforms
+            )
+                .chain()
+                .after(TransformSystem::TransformPropagate),
+        )
         .run();
 }

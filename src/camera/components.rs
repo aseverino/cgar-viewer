@@ -24,6 +24,7 @@ use bevy::{
     ecs::component::Component,
     math::{Vec2, Vec3},
 };
+use cgar::{mesh::basic_types::Mesh as CgarMesh, numeric::cgar_f64::CgarF64};
 
 #[derive(Component)]
 pub struct OrbitCamera {
@@ -32,3 +33,7 @@ pub struct OrbitCamera {
     pub upside_down: bool,
     pub last_mouse_pos: Option<Vec2>,
 }
+
+// Component for cgar mesh wrapper
+#[derive(Component)]
+pub struct CgarMeshData(pub CgarMesh<CgarF64, 3>);

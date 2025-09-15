@@ -33,6 +33,7 @@ use bevy::{
         mouse::{MouseButton, MouseMotion, MouseWheel},
     },
     math::{Vec2, Vec3},
+    render::camera::Projection,
     transform::components::Transform,
 };
 
@@ -45,6 +46,7 @@ pub fn camera_controller(
     mut mouse_motion: EventReader<MouseMotion>,
     mut mouse_wheel: EventReader<MouseWheel>,
     mut camera_query: Query<(&mut Transform, &mut OrbitCamera), With<Camera3d>>,
+    mut projection_query: Query<&mut Projection, With<Camera3d>>,
 ) {
     let Ok((mut transform, mut orbit)) = camera_query.single_mut() else {
         return;
@@ -87,23 +89,18 @@ pub fn camera_controller(
         scroll += wheel_event.y;
     }
 
-    // Handle zoom with mouse wheel or keyboard
-    if scroll.abs() > 0.0 {
-        orbit.radius -= scroll * orbit.radius * 0.05;
-        orbit.radius = orbit.radius.clamp(0.1, 20.0);
-        orbit_button_changed = true;
-    }
-
-    // Keyboard zoom
-    if keyboard.pressed(KeyCode::Equal) {
-        orbit.radius -= 0.1;
-        orbit.radius = orbit.radius.clamp(0.1, 20.0);
-        orbit_button_changed = true;
-    }
-    if keyboard.pressed(KeyCode::Minus) {
-        orbit.radius += 0.1;
-        orbit.radius = orbit.radius.clamp(0.1, 20.0);
-        orbit_button_changed = true;
+    if let Ok(mut projection) = projection_query.single_mut() {
+        match projection.as_mut() {
+            bevy::render::camera::Projection::Orthographic(ortho) => {
+                // For orthographic, adjust scale instead of distance
+                if scroll != 0.0 {
+                    let zoom_speed = 0.1;
+                    ortho.scale *= 1.0 + scroll * zoom_speed;
+                    ortho.scale = ortho.scale.clamp(0.1, 10.0); // Reasonable limits
+                }
+            }
+            _ => {}
+        }
     }
 
     // Handle rotation
