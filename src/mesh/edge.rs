@@ -24,8 +24,10 @@ use bevy::core_pipeline::core_3d::Camera3d;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::Query;
-use bevy::math::{Vec3, Vec3A};
-use bevy::picking::events::Click;
+use bevy::math::{Vec2, Vec3, Vec3A};
+use bevy::pbr::wireframe::NoWireframe;
+use bevy::picking::events::{Click, Pressed, Released};
+use bevy::picking::pointer::PointerId;
 use bevy::render::camera::Camera;
 use bevy::transform::components::GlobalTransform;
 use bevy::window::{PrimaryWindow, Window};
@@ -45,6 +47,7 @@ use bevy::{
     transform::components::Transform,
     utils::default,
 };
+use bevy_inspector_egui::egui::ahash::HashMap;
 use cgar::geometry::spatial_element::SpatialElement;
 use cgar::geometry::{Point3, Vector3};
 use cgar::mesh::basic_types::{IntersectionHit, IntersectionResult, Mesh as CgarMesh};
@@ -62,20 +65,54 @@ pub struct HighlightedEdges {
     pub cylinders: Vec<Entity>,
 }
 
+#[derive(Resource, Default)]
+pub struct PointerPresses {
+    pub pos: HashMap<PointerId, Vec2>,
+    pub target: HashMap<PointerId, Entity>,
+}
+
 pub fn handle_mesh_click(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut highlighted_edges: ResMut<HighlightedEdges>,
-    mut click_events: EventReader<Pointer<Click>>,
-    // NOTE: use GlobalTransform instead of local Transform
+    mut press_events: EventReader<Pointer<Pressed>>,
+    mut release_events: EventReader<Pointer<Released>>,
+    mut presses: ResMut<PointerPresses>,
     mesh_query: Query<(&Mesh3d, &GlobalTransform, &CgarMeshData)>,
-    // Filter to the 3D camera to avoid picking the wrong camera
     camera_query: Query<(&Camera, &GlobalTransform), With<Camera3d>>,
-    // Use window for physical pixel conversion and viewport offset
     window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
-    for event in click_events.read() {
+    for event in press_events.read() {
+        presses
+            .pos
+            .insert(event.pointer_id, event.pointer_location.position);
+        presses.target.insert(event.pointer_id, event.target);
+    }
+
+    let click_deadzone = 3.0;
+    let deadzone_sq = click_deadzone * click_deadzone;
+
+    for event in release_events.read() {
+        let Some(start_pos) = presses.pos.remove(&event.pointer_id) else {
+            continue;
+        };
+        let _ = presses.target.remove(&event.pointer_id);
+
+        let end_pos = event.pointer_location.position;
+        let moved_sq = (end_pos - start_pos).length_squared();
+
+        let same_target = presses
+            .target
+            .get(&event.pointer_id)
+            .map(|t| *t == event.target)
+            .unwrap_or(true);
+
+        if moved_sq > deadzone_sq || !same_target {
+            // Treat as drag; do not click
+            continue;
+        }
+
         if let Ok((_, mesh_global, cgar_data)) = mesh_query.get(event.target) {
             clear_edge_highlights(&mut commands, &mut highlighted_edges);
 
@@ -565,7 +602,7 @@ fn create_edge_cylinder(
 
     // Create cylinder mesh
     let cylinder_mesh = Mesh::from(bevy::math::primitives::Cylinder {
-        radius: 0.02, // Slightly larger for better visibility
+        radius: 0.005, // Slightly larger for better visibility
         half_height: length / 2.0,
     });
 
@@ -593,6 +630,7 @@ fn create_edge_cylinder(
                 rotation,
                 ..default()
             },
+            NoWireframe,
             EdgeHighlight { original_entity },
         ))
         .id()
