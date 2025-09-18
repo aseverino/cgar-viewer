@@ -35,7 +35,10 @@ mod utils;
 use crate::camera::systems::camera_controller;
 use crate::input::systems::toggle_wireframe;
 use crate::lighting::setup::{setup_camera_and_light, sync_camera_aspect};
-use crate::mesh::edge::{HighlightedEdges, PointerPresses, handle_mesh_click};
+use crate::mesh::edge::{
+    HighlightedEdges, PointerPresses, ToggledEdgeOperations, handle_mesh_click,
+    toggle_collapse_edge,
+};
 use crate::mesh::setup::setup_cgar_mesh;
 // ... other imports
 
@@ -50,6 +53,7 @@ fn main() {
         }))
         .init_resource::<HighlightedEdges>()
         .init_resource::<PointerPresses>()
+        .init_resource::<ToggledEdgeOperations>()
         .add_plugins((
             MeshPickingPlugin, // built-in mesh picking
             WireframePlugin::default(),
@@ -57,7 +61,12 @@ fn main() {
         .add_systems(Startup, (setup_camera_and_light, setup_cgar_mesh))
         .add_systems(
             Update,
-            (toggle_wireframe, camera_controller, handle_mesh_click),
+            (
+                toggle_wireframe,
+                camera_controller,
+                handle_mesh_click,
+                toggle_collapse_edge,
+            ),
         )
         .add_systems(
             PostUpdate,

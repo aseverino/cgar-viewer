@@ -20,10 +20,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+use std::ops::{Add, Div, Mul, Neg, Sub};
+
 use bevy::core_pipeline::core_3d::Camera3d;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::Query;
+use bevy::ecs::system::{Query, Res};
+use bevy::input::ButtonInput;
+use bevy::input::keyboard::KeyCode;
 use bevy::math::{Vec2, Vec3, Vec3A};
 use bevy::pbr::wireframe::NoWireframe;
 use bevy::picking::events::{Click, Pressed, Released};
@@ -51,9 +55,12 @@ use bevy_inspector_egui::egui::ahash::HashMap;
 use cgar::geometry::spatial_element::SpatialElement;
 use cgar::geometry::{Point3, Vector3};
 use cgar::mesh::basic_types::{IntersectionHit, IntersectionResult, Mesh as CgarMesh};
+use cgar::mesh::edge_collapse::CollapseReject;
 use cgar::numeric::cgar_f64::CgarF64;
+use cgar::numeric::scalar::Scalar;
 
 use crate::camera::components::CgarMeshData;
+use crate::mesh::conversion::cgar_to_bevy_mesh;
 
 #[derive(Component)]
 pub struct EdgeHighlight {
@@ -71,6 +78,21 @@ pub struct PointerPresses {
     pub target: HashMap<PointerId, Entity>,
 }
 
+#[derive(Resource, Default)]
+pub struct ToggledEdgeOperations {
+    pub collapse: bool,
+}
+
+pub fn toggle_collapse_edge(
+    kb: Res<ButtonInput<KeyCode>>,
+    mut toggled_edges: ResMut<ToggledEdgeOperations>,
+) {
+    if kb.just_pressed(KeyCode::KeyE) {
+        toggled_edges.collapse = !toggled_edges.collapse;
+        println!("Toggled edge collapse to {}", toggled_edges.collapse);
+    }
+}
+
 pub fn handle_mesh_click(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -79,10 +101,17 @@ pub fn handle_mesh_click(
     mut press_events: EventReader<Pointer<Pressed>>,
     mut release_events: EventReader<Pointer<Released>>,
     mut presses: ResMut<PointerPresses>,
-    mesh_query: Query<(&Mesh3d, &GlobalTransform, &CgarMeshData)>,
+    toggled_edges: ResMut<ToggledEdgeOperations>,
+    mut mesh_query: Query<(&Mesh3d, &GlobalTransform, &mut CgarMeshData)>,
     camera_query: Query<(&Camera, &GlobalTransform), With<Camera3d>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
-) {
+) where
+    for<'a> &'a CgarF64: Add<&'a CgarF64, Output = CgarF64>
+        + Sub<&'a CgarF64, Output = CgarF64>
+        + Mul<&'a CgarF64, Output = CgarF64>
+        + Div<&'a CgarF64, Output = CgarF64>
+        + Neg<Output = CgarF64>,
+{
     for event in press_events.read() {
         presses
             .pos
@@ -113,9 +142,8 @@ pub fn handle_mesh_click(
             continue;
         }
 
-        if let Ok((_, mesh_global, cgar_data)) = mesh_query.get(event.target) {
+        if let Ok((mesh_handle, mesh_global, mut cgar_data)) = mesh_query.get_mut(event.target) {
             clear_edge_highlights(&mut commands, &mut highlighted_edges);
-
             if let (Ok((camera, camera_transform)), Ok(window)) =
                 (camera_query.single(), window_query.single())
             {
@@ -159,7 +187,7 @@ pub fn handle_mesh_click(
                         local_origin, local_direction
                     );
 
-                    let cgar_mesh = &cgar_data.0;
+                    let cgar_mesh = &mut cgar_data.0;
                     let tree = cgar_mesh.build_face_tree();
                     let tolerance = CgarF64::from(0.05);
 
@@ -170,17 +198,34 @@ pub fn handle_mesh_click(
                         &Some(tolerance),
                     ) {
                         IntersectionResult::Hit(hit, _distance) => match hit {
-                            IntersectionHit::Edge(v0, v1, _) => {
-                                highlight_cgar_edge(
-                                    &mut commands,
-                                    &mut meshes,
-                                    &mut materials,
-                                    &mut highlighted_edges,
-                                    cgar_mesh,
-                                    (v0, v1),
-                                    mesh_global,
-                                    event.target,
-                                );
+                            IntersectionHit::Edge(v0, v1, u) => {
+                                if toggled_edges.collapse {
+                                    // if u is closer to v0, collapse towards v1, else towards v0
+                                    let result: Result<(), CollapseReject>;
+
+                                    if u < CgarF64::from(0.5) {
+                                        result = cgar_mesh.collapse_edge(v1, v0);
+                                    } else {
+                                        result = cgar_mesh.collapse_edge(v0, v1);
+                                    }
+
+                                    if result.is_ok() {
+                                        let new_mesh = cgar_to_bevy_mesh(&cgar_data.0);
+                                        meshes.insert(&mesh_handle.0, new_mesh);
+                                        println!("success");
+                                    }
+                                } else {
+                                    highlight_cgar_edge(
+                                        &mut commands,
+                                        &mut meshes,
+                                        &mut materials,
+                                        &mut highlighted_edges,
+                                        cgar_mesh,
+                                        (v0, v1),
+                                        mesh_global,
+                                        event.target,
+                                    );
+                                }
                             }
                             IntersectionHit::Face(face_id, _) => {
                                 for edge_idx in cgar_mesh.face_half_edges(face_id).iter() {
