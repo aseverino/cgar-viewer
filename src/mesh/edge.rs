@@ -215,6 +215,8 @@ pub fn handle_mesh_click(
                                         println!("success");
                                     }
                                 } else {
+                                    let he_idx = cgar_mesh.edge_map[&(v0, v1)];
+                                    let half_edge = &cgar_mesh.half_edges[he_idx];
                                     highlight_cgar_edge(
                                         &mut commands,
                                         &mut meshes,
@@ -224,7 +226,62 @@ pub fn handle_mesh_click(
                                         (v0, v1),
                                         mesh_global,
                                         event.target,
+                                        Color::srgb(0.2, 1.0, 0.2),
                                     );
+
+                                    println!(
+                                        "Highlighted half-edge {}: {:?}\n  Vertices: ({}, {})",
+                                        he_idx, half_edge, v0, v1
+                                    );
+                                    println!("  Next is red, Prev is blue");
+
+                                    if half_edge.twin != usize::MAX {
+                                        highlight_cgar_edge(
+                                            &mut commands,
+                                            &mut meshes,
+                                            &mut materials,
+                                            &mut highlighted_edges,
+                                            cgar_mesh,
+                                            (v1, v0),
+                                            mesh_global,
+                                            event.target,
+                                            Color::srgb(0.2, 1.0, 0.2),
+                                        );
+                                    }
+
+                                    if half_edge.next != usize::MAX {
+                                        let next_he = &cgar_mesh.half_edges[half_edge.next];
+                                        let next_v0 = next_he.vertex;
+                                        let next_v1 = cgar_mesh.half_edges[next_he.next].vertex;
+                                        highlight_cgar_edge(
+                                            &mut commands,
+                                            &mut meshes,
+                                            &mut materials,
+                                            &mut highlighted_edges,
+                                            cgar_mesh,
+                                            (next_v0, next_v1),
+                                            mesh_global,
+                                            event.target,
+                                            Color::srgb(1.0, 0.2, 0.2),
+                                        );
+                                    }
+
+                                    if half_edge.prev != usize::MAX {
+                                        let prev_he = &cgar_mesh.half_edges[half_edge.prev];
+                                        let prev_v1 = half_edge.vertex;
+                                        let prev_v0 = cgar_mesh.half_edges[prev_he.prev].vertex;
+                                        highlight_cgar_edge(
+                                            &mut commands,
+                                            &mut meshes,
+                                            &mut materials,
+                                            &mut highlighted_edges,
+                                            cgar_mesh,
+                                            (prev_v0, prev_v1),
+                                            mesh_global,
+                                            event.target,
+                                            Color::srgb(0.2, 0.2, 1.0),
+                                        );
+                                    }
                                 }
                             }
                             IntersectionHit::Face(face_id, _) => {
@@ -241,6 +298,7 @@ pub fn handle_mesh_click(
                                             (v0, v1),
                                             mesh_global,
                                             event.target,
+                                            Color::srgb(0.2, 1.0, 0.2),
                                         );
                                     }
                                 }
@@ -348,6 +406,7 @@ fn highlight_cgar_edge(
     edge_vertices: (usize, usize),
     mesh_transform: &GlobalTransform,
     original_entity: Entity,
+    color: Color,
 ) {
     // Get the specific edge from CGAR mesh
     if let Some(edge) = cgar_mesh.edge_half_edges(edge_vertices.0, edge_vertices.1) {
@@ -376,10 +435,9 @@ fn highlight_cgar_edge(
             mesh_transform,
             edge_vertices,
             original_entity,
+            color,
         );
         highlighted_edges.cylinders.push(cylinder);
-
-        println!("Highlighted edge {:?}", edge_vertices);
     }
 }
 
@@ -392,6 +450,7 @@ fn create_edge_cylinder(
     mesh_transform: &GlobalTransform,
     edge_vertices: (usize, usize),
     original_entity: Entity,
+    color: Color,
 ) -> Entity {
     let world_start = mesh_transform.transform_point(start);
     let world_end = mesh_transform.transform_point(end);
@@ -408,8 +467,8 @@ fn create_edge_cylinder(
 
     let mesh_handle = meshes.add(cylinder_mesh);
     let material_handle = materials.add(StandardMaterial {
-        base_color: Color::srgb(1.0, 0.0, 0.0),      // Red highlight
-        emissive: Color::srgb(0.8, 0.0, 0.0).into(), // Brighter emission
+        base_color: color,
+        emissive: color.into(), // Brighter emission
         ..default()
     });
 
