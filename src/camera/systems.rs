@@ -95,7 +95,7 @@ pub fn camera_controller(
                 // For orthographic, adjust scale instead of distance
                 if scroll != 0.0 {
                     let zoom_speed = 0.1;
-                    ortho.scale *= 1.0 + scroll * zoom_speed;
+                    ortho.scale *= 1.0 - scroll * zoom_speed;
                     ortho.scale = ortho.scale.clamp(0.1, 10.0); // Reasonable limits
                 }
             }
