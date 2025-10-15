@@ -39,13 +39,13 @@ use cgar::{
 use crate::{camera::components::CgarMeshData, mesh::conversion::cgar_to_bevy_mesh};
 use cgar::mesh::basic_types::Mesh as CgarMesh;
 
-fn create_grid4x4_mesh() -> CgarMesh<CgarF64, 3> {
+fn create_grid_mesh(grid_size: usize) -> CgarMesh<CgarF64, 3> {
     let mut mesh = CgarMesh::<CgarF64, 3>::new();
 
-    // make 4x4 vertices
-    let id = |x: usize, y: usize| -> usize { y * 4 + x };
-    for y in 0..4 {
-        for x in 0..4 {
+    // make grid_size x grid_size vertices
+    let id = |x: usize, y: usize| -> usize { y * grid_size + x };
+    for y in 0..grid_size {
+        for x in 0..grid_size {
             mesh.add_vertex(cgar::geometry::Point3::from_vals([
                 CgarF64::from(x as f64),
                 CgarF64::from(y as f64),
@@ -54,21 +54,20 @@ fn create_grid4x4_mesh() -> CgarMesh<CgarF64, 3> {
         }
     }
 
-    // triangulate 3x3 quads with consistent CCW diagonal
-    for y in 0..3 {
-        for x in 0..3 {
+    // triangulate (grid_size-1) x (grid_size-1) quads
+    for y in 0..(grid_size - 1) {
+        for x in 0..(grid_size - 1) {
             let v00 = id(x, y);
             let v10 = id(x + 1, y);
             let v01 = id(x, y + 1);
             let v11 = id(x + 1, y + 1);
 
-            mesh.add_triangle(v00, v10, v11); // diag (v00->v11)
+            mesh.add_triangle(v00, v10, v11);
             mesh.add_triangle(v00, v11, v01);
         }
     }
 
-    // Wire boundary loops so rot_ccw = twin(prev) works everywhere
-    mesh.build_boundary_loops();
+    mesh.validate_connectivity();
     mesh
 }
 
@@ -85,7 +84,7 @@ pub fn setup_cgar_mesh(
 {
     // For now: create a simple cube as a placeholder
     // let cgar_mesh = read_obj::<CgarF64, _>("/mnt/v/cgar_meshes/cube.obj").unwrap(); // Replace with your actual CGAR mesh
-    let cgar_mesh = create_grid4x4_mesh();
+    let cgar_mesh = create_grid_mesh(16);
     let bevy_mesh = cgar_to_bevy_mesh(&cgar_mesh);
 
     let handle = meshes.add(bevy_mesh);
