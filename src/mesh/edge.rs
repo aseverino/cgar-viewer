@@ -62,6 +62,14 @@ use cgar::numeric::scalar::Scalar;
 use crate::camera::components::CgarMeshData;
 use crate::mesh::conversion::cgar_to_bevy_mesh;
 
+#[derive(Resource, Default, Debug, PartialEq, Eq, Clone, Copy)]
+pub enum EdgeOperation {
+    #[default]
+    None,
+    Collapse,
+    Split,
+}
+
 #[derive(Component)]
 pub struct EdgeHighlight {
     pub original_entity: Entity,
@@ -80,7 +88,7 @@ pub struct PointerPresses {
 
 #[derive(Resource, Default)]
 pub struct ToggledEdgeOperations {
-    pub collapse: bool,
+    pub toggled: EdgeOperation,
 }
 
 pub fn toggle_collapse_edge(
@@ -88,8 +96,20 @@ pub fn toggle_collapse_edge(
     mut toggled_edges: ResMut<ToggledEdgeOperations>,
 ) {
     if kb.just_pressed(KeyCode::KeyE) {
-        toggled_edges.collapse = !toggled_edges.collapse;
-        println!("Toggled edge collapse to {}", toggled_edges.collapse);
+        if toggled_edges.toggled == EdgeOperation::Collapse {
+            toggled_edges.toggled = EdgeOperation::None;
+        } else {
+            toggled_edges.toggled = EdgeOperation::Collapse;
+        }
+        println!("Edge Operation set to {:?}", toggled_edges.toggled);
+    }
+    if kb.just_pressed(KeyCode::KeyS) {
+        if toggled_edges.toggled == EdgeOperation::Split {
+            toggled_edges.toggled = EdgeOperation::None;
+        } else {
+            toggled_edges.toggled = EdgeOperation::Split;
+        }
+        println!("Edge Operation set to {:?}", toggled_edges.toggled);
     }
 }
 
@@ -199,7 +219,7 @@ pub fn handle_mesh_click(
                     ) {
                         IntersectionResult::Hit(hit, _distance) => match hit {
                             IntersectionHit::Edge(v0, v1, u) => {
-                                if toggled_edges.collapse {
+                                if toggled_edges.toggled == EdgeOperation::Collapse {
                                     // if u is closer to v0, collapse towards v1, else towards v0
                                     let result: Result<(), CollapseReject>;
 
@@ -214,6 +234,17 @@ pub fn handle_mesh_click(
                                         meshes.insert(&mesh_handle.0, new_mesh);
                                         println!("success");
                                     }
+                                } else if toggled_edges.toggled == EdgeOperation::Split {
+                                    // Split edge at u
+                                    // let new_vertex_index =
+                                    //     cgar_mesh.split_edge();
+
+                                    // let new_mesh = cgar_to_bevy_mesh(&cgar_data.0);
+                                    // meshes.insert(&mesh_handle.0, new_mesh);
+                                    // println!(
+                                    //     "Split edge ({}, {}) at u={} -> new vertex {}",
+                                    //     v0, v1, u, new_vertex_index
+                                    // );
                                 } else {
                                     let he_idx = cgar_mesh.edge_map[&(v0, v1)];
                                     let half_edge = &cgar_mesh.half_edges[he_idx];
